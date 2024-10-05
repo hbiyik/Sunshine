@@ -225,6 +225,7 @@ namespace video {
    * @return Hardware buffer on success, or an error code on failure.
    */
   util::Either<avcodec_buffer_t, int> vulkan_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  util::Either<avcodec_buffer_t, int> rkmpp_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
 
   int avcodec_software_encode_device_t::convert(platf::img_t &img) {
     // If we need to add aspect ratio padding, we need to scale into an intermediate output buffer
@@ -1471,6 +1472,45 @@ namespace video {
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
 
+  encoder_t rkmpp {
+      "rkmpp"sv,
+      std::make_unique<encoder_platform_formats_avcodec>(
+        AV_HWDEVICE_TYPE_RKMPP, AV_HWDEVICE_TYPE_NONE,
+        AV_PIX_FMT_DRM_PRIME,
+        AV_PIX_FMT_NV12, AV_PIX_FMT_NONE,
+        AV_PIX_FMT_NONE, AV_PIX_FMT_NONE,
+        rkmpp_init_avcodec_hardware_input_buffer),
+      {
+        {},  // Common options
+        {},  // SDR-specific options
+        {},  // HDR-specific options
+        {},  // YUV444 SDR-specific options
+        {},  // YUV444 HDR-specific options
+        {},  // Fallback options
+        {},
+      },
+      {
+        {},  // Common options
+        {},  // SDR-specific options
+        {},  // HDR-specific options
+        {},  // YUV444 SDR-specific options
+        {},  // YUV444 HDR-specific options
+        {},  // Fallback options
+        "hevc_rkmpp"s,
+      },
+      {
+        {},  // Common options
+        {},  // SDR-specific options
+        {},  // HDR-specific options
+        {},  // YUV444 SDR-specific options
+        {},  // YUV444 HDR-specific options
+        {},  // Fallback options
+        "h264_rkmpp"s,
+      },
+      // RC buffer size will be set in platform code if supported
+      LIMITED_GOP_SIZE | NO_RC_BUF_LIMIT
+    };
+
   #ifdef SUNSHINE_BUILD_VULKAN
   encoder_t vulkan {
     "vulkan"sv,
@@ -1614,6 +1654,7 @@ namespace video {
     &vulkan,
   #endif
     &vaapi,
+    &rkmpp,
 #endif
 #ifdef __APPLE__
     &videotoolbox,
@@ -3991,6 +4032,22 @@ namespace video {
   }
 #endif
 
+  util::Either<avcodec_buffer_t, int>
+  rkmpp_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+    avcodec_buffer_t hw_device_buf;
+
+    auto render_device = config::video.adapter_name.empty() ? nullptr : config::video.adapter_name.c_str();
+
+    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_RKMPP, render_device, nullptr, 0);
+    if (status < 0) {
+      char string[AV_ERROR_MAX_STRING_SIZE];
+      BOOST_LOG(error) << "Failed to create a RKMPP device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+      return -1;
+    }
+
+    return hw_device_buf;
+  }
+  
   /**
    * @brief Initialize AVCodec hardware input buffers for CUDA.
    */
