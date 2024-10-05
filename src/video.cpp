@@ -93,6 +93,8 @@ namespace video {
   cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int>
   vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  util::Either<avcodec_buffer_t, int>
+  rkmpp_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
 
   class avcodec_software_encode_device_t: public platf::avcodec_encode_device_t {
   public:
@@ -912,6 +914,48 @@ namespace video {
     // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT
   };
+
+  encoder_t rkmpp {
+      "rkmpp"sv,
+      std::make_unique<encoder_platform_formats_avcodec>(
+        AV_HWDEVICE_TYPE_RKMPP, AV_HWDEVICE_TYPE_NONE,
+        AV_PIX_FMT_DRM_PRIME,
+        AV_PIX_FMT_NV12, AV_PIX_FMT_NONE,
+        AV_PIX_FMT_NONE, AV_PIX_FMT_NONE,
+        rkmpp_init_avcodec_hardware_input_buffer),
+      {
+        {},  // Common options
+        {},  // SDR-specific options
+        {},  // HDR-specific options
+        {},  // YUV444 SDR-specific options
+        {},  // YUV444 HDR-specific options
+        {},  // Fallback options
+        std::nullopt,
+        {},
+      },
+      {
+        {},  // Common options
+        {},  // SDR-specific options
+        {},  // HDR-specific options
+        {},  // YUV444 SDR-specific options
+        {},  // YUV444 HDR-specific options
+        {},  // Fallback options
+        std::nullopt,
+        "hevc_rkmpp"s,
+      },
+      {
+        {},  // Common options
+        {},  // SDR-specific options
+        {},  // HDR-specific options
+        {},  // YUV444 SDR-specific options
+        {},  // YUV444 HDR-specific options
+        {},  // Fallback options
+        std::nullopt,
+        "h264_rkmpp"s,
+      },
+      // RC buffer size will be set in platform code if supported
+      LIMITED_GOP_SIZE | NO_RC_BUF_LIMIT
+    };
 #endif
 
 #ifdef __APPLE__
@@ -991,6 +1035,7 @@ namespace video {
 #endif
 #ifdef __linux__
     &vaapi,
+    &rkmpp,
 #endif
 #ifdef __APPLE__
     &videotoolbox,
@@ -2814,6 +2859,22 @@ namespace video {
   }
 
   util::Either<avcodec_buffer_t, int>
+  rkmpp_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+    avcodec_buffer_t hw_device_buf;
+
+    auto render_device = config::video.adapter_name.empty() ? nullptr : config::video.adapter_name.c_str();
+
+    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_RKMPP, render_device, nullptr, 0);
+    if (status < 0) {
+      char string[AV_ERROR_MAX_STRING_SIZE];
+      BOOST_LOG(error) << "Failed to create a RKMPP device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+      return -1;
+    }
+
+    return hw_device_buf;
+  }
+
+  util::Either<avcodec_buffer_t, int>
   cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
@@ -2915,6 +2976,8 @@ namespace video {
         return platf::mem_type_e::dxgi;
       case AV_HWDEVICE_TYPE_VAAPI:
         return platf::mem_type_e::vaapi;
+      case AV_HWDEVICE_TYPE_RKMPP:
+        return platf::mem_type_e::rkmpp;
       case AV_HWDEVICE_TYPE_CUDA:
         return platf::mem_type_e::cuda;
       case AV_HWDEVICE_TYPE_NONE:
