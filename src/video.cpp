@@ -934,7 +934,9 @@ namespace video {
         {},
       },
       {
-        {},  // Common options
+        {
+          { "rc_mode"s, 1 },
+        },  // Common options
         {},  // SDR-specific options
         {},  // HDR-specific options
         {},  // YUV444 SDR-specific options
@@ -944,7 +946,9 @@ namespace video {
         "hevc_rkmpp"s,
       },
       {
-        {},  // Common options
+        {
+          { "rc_mode"s, 1 },
+        },  // Common options
         {},  // SDR-specific options
         {},  // HDR-specific options
         {},  // YUV444 SDR-specific options
